@@ -1,0 +1,1379 @@
+#!/bin/sh
+#Início da função de configuração do MySamba, deverá ser chamada depois, láaaaaaem baixo...
+#Segue o padrão LSB, mais se sua distro é teimosa e tem os arquivos em outros locais, é só mudar 
+#a variável abaixo   smbdir=/etc/samba     para, "por exemplo":   smbdir=/usr/local/etc/samba
+#
+#Criado versão 0.1 de 27/03/2006
+
+
+
+#Variáveis
+DIALOG=dialog
+
+if [ ! $DIALOG ]
+then
+   echo "O programa de interface   $DIALOG   nao foi encontrado."
+   sleep 3
+   
+   exit 1
+fi
+
+
+$DIALOG --title "Loading..." --infobox "Carregando\nVariável DIALOG\n###########..................................." 5 50
+mydialog=$DIALOG
+sleep 3
+
+$DIALOG --title "Loading..." --infobox "Carregando\nVariável do diretório Samba \n######################........................" 5 50 
+smbdir=/etc/samba
+sleep 3
+
+$DIALOG --title "Loading..." --infobox "Carregando\nVariável do logotipo MySamba Server \n#################################............." 5 50 
+SAMBAX="MySamba Server 0.1"
+sleep 3
+
+$DIALOG --title "Loading..." --infobox "Carregando\nVariável que testa a instalação do MySamba \n##############################################" 5 50 
+filemysamba=/usr/local/bin/mysamba
+sleep 3
+
+##################
+MINIIF () { 
+if [ $? != 0 ];then
+ $DIALOG --title "Atenção" --yesno "Você cancelou a configuração no meio do caminho,\n
+tem certeza que quer cancelar(yes) ou continuar(no)." 0 0
+ if [ $? == 0 ]; then  
+  confdozero 
+ fi
+fi 
+}
+##################
+
+$DIALOG --title "Loading..." --infobox "Carregando\nLoading Completed \n##############################################" 5 50
+sleep 4
+#Variables loadeds to memory
+#Fim variáveis
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#####  #####  #####  #####  #####  #####  #####  #####  #####  #####  #####  #####  #####  #####
+   #####  #####  #####  #####  #####  #####  #####  #####  #####  #####  #####  #####  #####
+#################################################################################################
+#TODAS A FUNÇÕES SEPARADAS E ORGANIZADAS   
+
+
+
+
+################
+   GGRUPO () {
+       GROUP=$($DIALOG --stdout --inputbox 'Digite o nome do grupo ou domínio onde o servidor MySamba  trabalhará:' 0 0)
+       MINIIF
+    echo "workgroup = $GROUP">>$smbdir/smb.conf
+      } 
+################
+################################################################
+################################################################
+################
+   HOST () {
+      H=`hostname`
+       NAME=$($DIALOG --title "Nome server" --stdout --inputbox "Digite o nome que você quer dar ao servidor MySamba. Exemplo:\n\n$H" 0 0)
+        MINIIF
+    echo "netbios name = $NAME">>$smbdir/smb.conf
+      }
+################
+################################################################
+################################################################
+################
+   WINSRESOLVER () {
+      $DIALOG --yesno "Você quer que seu servidor MySamba forneça o serviço Wins? Wins é serviço de resolução de\nnomes semelhante ao DNS, só que voltado para o NetBIOS.\nOBS: Nunca coloque mais de um servidor\n Wins na mesma rede.\nOBS2: Se estiver configurando uma subrede com masquerade para acesso a um PDC\n ou um servidor WINS, você terá que mexer no gateway central para apontar uma rota para o gateway \n masquerade. O motivo disto é porque o masquerade do Linux atua somente nos cabeçalhos, mas o IP da\nestação é enviada e processada pelo PDC para retornar uma resposta. Da mesma forma, este IP é registrado\nno servidor WINS para uso das estações de trabalho. Isto só vai ser resolvido quando for escrito um módulo\nde conntrack para conexões SAMBA (até o lançamento do kernel 2.4.22, isso ainda não ocorreu).(Yes) para sim,\ndar suporte Wins (No) para não." 0 0
+      if [ $? == 0 ]
+      then
+           echo "wins support = yes">>$smbdir/smb.conf
+          echo "wins proxy = no">>$smbdir/smb.conf
+          echo "dns proxy = no">>$smbdir/smb.conf
+          echo "max wins ttl = 518400">>$smbdir/smb.conf
+      else
+      $DIALOG --yesno "Na sua rede tem algum servidor Wins, se tiver, escolha (Yes) para \n você especivicar o IP do servidor Wins da sua rede, ou (No) para não." 0 0
+            if [ $? == 0 ]
+            then
+            IPWIN=$($DIALOG --stdout --inputbox "Favor, digite o IP do servidor Wins da sua rede, já que\no MySamba não é quem está servindo este serviço." 0 0)
+           echo "wins server = $IPWIN">>$smbdir/smb.conf
+            else
+           echo "sem wins"
+            fi
+      fi
+      } 
+################
+################################################################
+################################################################
+################   
+   PLACAS () {
+    OPTION=$($DIALOG --stdout --no-cancel --title "Interface de rede" --menu "Se você tem só uma placa de rede (na maioria dos casos) escolha eth0. Se você tem duas\nplacas de rede, eth0 (deve estar conectado a Web por ADSL ou outra banda larga) e eth1 \nconectado a sua rede, escolha eth1 para só a rede local acessar o MySamba. Se escolher \n(Todas), há acessos por todas as placas, isso é para o caso das placas estarem\nligadas apenas para a sua rede local." 0 0 0 eth0 "Apenas uma placa. A eth0." eth1 "A segunda placa, eth1, para a sua rede." Todas "Compratilhar por todas.")
+
+      case $OPTION in
+       eth0)
+       echo "interfaces = eth0">>$smbdir/smb.conf
+       ;;
+
+            eth1)
+        echo "interfaces = eth1">>$smbdir/smb.conf
+           ;;   
+       Todas)
+       echo "Não preciso fazer nada..."
+       ;;
+         esac
+      }
+################
+################################################################
+################################################################
+################
+   SEGURANCA () {
+      SECU=$($DIALOG --stdout --no-cancel --title "Segurança do MySamba" --menu "Você terá de escolher entre dois níveis de segurança. A opção  (share)  não há muita segurança,\né a mesma coisa de um compartilhamento com o Windows98, todos tem acesso ao compartilhamento, é bom \npara um compartilhamento simples, mais a responsabilidade é sua. A opção  (user) é a mais recomendável,\n nela especifica-se quais usuários terão acesso a um compartilhamento. Atenção, para isto, os usuários das\n máquinas Windows devem ser cadastrados no Sistema Linux com o mesmo nome (login) e senha (password) que está\n nos Windows. Para criar estes usuários vá no menu principal do MySamba>Configurar>UsuáriosSamba. Este nível\n de segurança equivale a um compartilhamento pelo WindowsNT/XP/2000." 0 0 0 share "Segurança para compartilhamentos\n simples." user "Maior segurança e controle." server "Só pre quem entende.")
+           MINIIF
+       echo "security = $SECU">>$smbdir/smb.conf
+           }
+################
+################################################################
+################################################################
+################
+   CRIPTO () {
+      ENCRIPT=$($DIALOG --stdout --no-cancel --title "Suporte a senhas encriptadas" --menu "Se não tiver o Windows95 original (pois ele não suporta senhas encriptadas), escolha  (Yes), pois o windows95\n OSR/2,Windows98,SE,ME,NT,XP,2000 utilizam senhas encriptadas." 0 0 0 yes "Na maioria ds casos." no "Se os clientes são Windows 95 original.")
+  
+      echo "encrypt passwords = $ENCRIPT ">>$smbdir/smb.conf
+    
+      }
+################
+################################################################
+################################################################
+################    
+   TIPODEIMPRESSAO () {
+          TPIMPRESS=$($DIALOG --stdout --no-cancel --title "Tipo de impressão." --menu "Você pode escolher entre os sete tipos de impressão abaixo listados, o padrão é BSD." 0 0 0 bsd "É o padrão." cups "Esse é uma alternativa." sysv "sem comentários" plp "sem comentários" lprng "sem comentários" aix "sem comentários" hpux "sem comentários" qnx "sem comentários")
+        
+      echo "printing = $TPIMPRESS">>$smbdir/smb.conf
+                 } 
+################
+################################################################
+################################################################
+################
+   NIVEL () {
+           LEVEL=$($DIALOG --stdout --inputbox "Digite qual será o valor do OS Level do MySamba. O padrão é 33, só que com esse valor,\nse ouver máquinas com WindowsNT/2000/XP e se ocorrer eleições de  Master Browser entre\neles e o Samba, o Windows ganhará. Recomendo que coloque um valor por volta de 100, \nassim o Samba sempre será o Master Browser da rede, já que ele é o servidor." 0 0)
+       MINIIF
+   echo "os level = $LEVEL">>$smbdir/smb.conf
+   echo "dns proxy = no">>$smbdir/smb.conf
+   
+      }
+################
+################################################################
+################################################################
+################
+   DATACLOCKSERVER () {
+   $DIALOG --yesno "Quer que o MySamba também seja servidor de Data/Hora.Isso é útil para sincronizar\na Data/Hora das estações com o servidor da rede. Escolha Yes ou No." 0 0
+        
+    if [ $? == 0 ];
+    then
+     echo "time server = yes">>$smbdir/smb.conf
+  $DIALOG --msgbox 'Sincronizando a data/hora no Cliente\n
+  --------------------------------------------
+  Na estação cliente Windows, use o seguinte comando:\n
+  NET TIME \\SERVIDOR /WORKGROUP:GRUPO /SET /YES\n
+  Um local interessante para colocação deste comando\n
+  é na pasta Iniciar da estação Windows, pois todos \n
+  os comandos que estejam nesta pasta são executados\n
+  quando o sistema é iniciado.\n
+  Exemplos:\n
+  "net time \\linux /set /yes" = Sincroniza a hora com o servidor\n
+  \\linux e não pede confirmação (/yes).\n
+  "net time \\linux /WORKGROUP:pinguim /set /yes" - Sincroniza a\n
+  hora com o servidor "\\linux" do grupo de trabalho pinguim\n
+  (/WORKGROUP:pinguim) e não pede confirmação (/yes)' 0 0
+ else
+  echo "sem MySamba data server..."
+ fi
+         }
+################
+################################################################
+################################################################
+################
+   IPS () { 
+     IPACESS=$($DIALOG --title "IPs Livres" --stdout --inputbox "Aqui você pode dizer que IPs ou faixa de IPs TERÃO acesso ao $COISA.\nVocê pode digitar IPs específicos como:\n10.0.1.2 ou 192.168.3.1 \n\nOu faixas de \nIPs como:\n10.0.0. ou 192.168.\nnas faixas de IPs sempre coloque um ponto no final.\nDigite cada IP e faixas de IP separados por um espaço. Veja um exemplo onde tem acesso \npara as máquinas da faixa de IP  10.0  e  192.168.2\n\n10.0. 192.168.2.\nLembrando que \nse você não digitar nada, todas as máquinas terão acesso.\n\nAgora digite os endereços,\nse quizer:" 0 0)    
+   echo "hosts allow = $IPACESS">>$FILEIPDIR
+       sleep 1
+     NOIPACESS=$($DIALOG --title "IPs Negados" --stdout --inputbox "Aqui você vai dizer que IPs ou faixa de IPs NÃO TERÃO acesso ao $COISA.\nVocê pode digitar IPs específicos como:\n10.0.1.2 ou 192.168.3.1 \n\nOu faixas de IPs\n como:\n10.0.0. ou 192.168.\nnas faixas de IPs sempre coloque um ponto no final.\nDigite cada IP e faixas de IP separados por um espaço. Ex:\n\n10.0.4.3 10.0.2. 192.168.4.\nVocê pode deixar em branco que não interfere em nada. Atenção, se você digitar um IP de \numa máquina que tem acesso na opção anterior e colocar por acidente seu IP aqui, ou a faixa \nde IP ao qual ele está subordinado, ele continuará tendo acesso, pois a opção anterior prevalece.\n\nAgora digite os endereços, se quizer:" 0 0)    
+   echo "hosts deny = $NOIPACESS">>$FILEIPDIR
+      }   
+################
+################################################################
+################################################################
+################
+      HOMES () {
+      SOLER=$($DIALOG --stdout --no-cancel --title "Diretórios Home" --menu "Uma coisa bem interessante é que cada usuário pode acessar seu respectivo diretório\npessoal pela rede. Por exemplo, se você criou um usuário pelo MySamba com o nome de João,\n seu diretório neste computador está localizado em /home/João, e ele pode ser visto pela rede.\nVocê pode limitar esse acesso para somente leitura. Escolha (yes) para cada usuário ver seu \ndiretório neste servidor como somente leitura ou (no) para permitir escrita." 0 0 0 yes "Somente leitura." no "Permitir escrita.")
+       
+   echo "[homes]">>$smbdir/smb.conf
+   echo "comment = Diretórios Home">>$smbdir/smb.conf
+   echo "read only = $SOLER">>$smbdir/smb.conf
+
+       BROW=$($DIALOG --stdout --no-cancel --title "Diretórios Home" --menu "Você que que cada usuário veja seu respectivo diretório ou todos os usuários da\nrede vejam todos os diretórios HOME." 0 0 0 yes "Cada usuário ver o seu diretório \npessoal." no "Permitir que toda a rede veja os diretórios.")
+   echo "browseable = $BROW">>$smbdir/smb.conf
+   echo "valid users = %S">>$smbdir/smb.conf
+   echo "create mode = 0664">>$smbdir/smb.conf
+   echo "directory mode = 0775">>$smbdir/smb.conf
+         }
+################
+################################################################
+################################################################
+################
+   PRINTERGLOBAL () {
+      echo "printcap name = lpstat">>$smbdir/smb.conf
+      
+      echo "[printers]">>$smbdir/smb.conf
+      echo "comment = All Printers">>$smbdir/smb.conf
+      echo "path = /var/spool/samba">>$smbdir/smb.conf
+      echo "create mask = 0700">>$smbdir/smb.conf
+      echo "guest ok = yes">>$smbdir/smb.conf
+      echo "printable = yes">>$smbdir/smb.conf
+      echo "print command = lpr-cups -P %p -o raw %s -r # using client side printer drivers.">>$smbdir/smb.conf
+      echo "lpq command = lpstat -o %p">>$smbdir/smb.conf
+      echo "lprm command = cancel %p-%j">>$smbdir/smb.conf
+      echo "browseable = yes">>$smbdir/smb.conf
+         }
+################
+################################################################
+################################################################
+################
+      FINAL () {
+      ########
+      echo '#MySamba'>>$smbdir/smb.conf
+      cat $smbdir/smb.conf>$smbdir/GLOBAL
+      ########
+      sleep 1
+       $DIALOG --msgbox "Parabéns, você criou uma configuração base com sucesso.\nQuando voltar ao menu principal, crie os usuários samba,\nesses usuários são essenciais se você escolheu o nível de\nsegurança USER. Vá para o menu principal>Configurar>User\npara adicionar ou remover usuários." 0 0
+         }
+################
+################################################################
+################################################################
+################
+   NETLOGON () {
+   if [ ! -d $smbdir/netlogon ]; then
+      mkdir $smbdir/netlogon
+   fi
+   echo "[netlogon]">>$smbdir/smb.conf
+   echo "comment = Network Logon Service">>$smbdir/smb.conf
+   echo "path = $smbdir/netlogon">>$smbdir/smb.conf
+   echo "guest ok = no">>$smbdir/smb.conf
+   echo "writable = yes">>$smbdir/smb.conf
+   echo "share modes = no">>$smbdir/smb.conf
+   echo "browseable = no">>$smbdir/smb.conf
+   mkdir $smbdir/profiles
+   echo "[profiles]">>$smbdir/smb.conf
+   echo "path = $smbdir/profiles">>$smbdir/smb.conf
+   echo "browseable = yes">>$smbdir/smb.conf
+   echo "guest ok = yes">>$smbdir/smb.conf
+   echo "writable = yes">>$smbdir/smb.conf
+   echo "create mask = 0600">>$smbdir/smb.conf
+   echo "directory mask = 0700">>$smbdir/smb.conf
+          }
+################
+################################################################
+################################################################
+################    
+   MASTER () {
+   echo "local master = yes">>$smbdir/smb.conf 
+   echo "domain master = yes">>$smbdir/smb.conf
+   echo "preferred master = yes">>$smbdir/smb.conf
+   echo "domain logons = yes">>$smbdir/smb.conf
+   echo "logon script = %m.bat">>$smbdir/smb.conf
+   echo "dns proxy = no">>$smbdir/smb.conf
+   echo "guest account = guest">>$smbdir/smb.conf
+      }
+################
+################################################################
+################################################################
+################
+   PASSWORDSYNC () {
+echo "unix password sync = yes">>$smbdir/smb.conf 
+echo "passwd program = /usr/bin/passwd %u">>$smbdir/smb.conf
+echo "passwd chat = *New*UNIX*password* %n\n *ReType*new*UNIX*password* %n\n *passwd:*all*authentication*tokens*updated*successfully*">>$smbdir/smb.conf 
+echo "smb passwd file = $smbdir/smbpasswd">>$smbdir/smb.conf
+         }
+################
+################################################################
+################################################################
+################
+   LOGS () {
+    #logs
+    echo 'log file = /var/log/samba/log.%m'>>$smbdir/smb.conf
+    echo 'max log size = 50'>>$smbdir/smb.conf
+      }
+################
+################################################################
+################################################################
+################
+   SOCKET () {
+    echo "socket options = TCP_NODELAY SO_RCVBUF=8192 SO_SNDBUF=8192">>$smbdir/smb.conf
+      }
+################
+################################################################
+################################################################
+################   
+   STRINGANDRESOLVER () {
+    echo "server string = MySambaServer 0.1 - Samba %v">>$smbdir/smb.conf
+     echo "name resolve order = lmhosts host wins bcast">>$smbdir/smb.conf
+              }
+################
+################################################################
+################################################################
+################
+   aplicar () { 
+             cat $smbdir/comp/*.comp>>$smbdir/smb.conf
+        cat $smbdir/compprint/*.comp>>$smbdir/smb.conf
+         }
+################
+################################################################
+################################################################
+################
+   MSPERCEBI () {
+     $DIALOG --yesno "Percebi que você já tinha efetuado uma configuração base do MySamba, e ela pode ser removida! Posso começar uma\nnova configuração base e manter intactos os compartilhamentos. Você pode fazer backup da\nconfiguração atual para recuperá-lo depois. Para isto vá no Menu Principal>Configurar>\ne vá na opção que efetua backups. Quer continuar (Yes) caso já tenha feito um backup, ou sair\nsem fazer nada (No) para ir fazer um backup." 0 0
+           }
+################
+################################################################
+################################################################
+################
+      MSGLOBALREMOVE () { 
+          $DIALOG --yesno "Percebi que você já tinha efetuado uma configuração base do MySamba, e ela pode ser removida! Posso começar uma\nnova configuração base e manter intactos os compartilhamentos. Você pode fazer backup da\nconfiguração atual para recuperá-lo depois. Para isto vá no Menu Principal>Configurar>\ne vá na opção que efetua backups. Quer continuar (Yes) caso já tenha feito um backup, ou sair\nsem fazer nada (No) para ir fazer um backup." 0 0
+            }
+################
+################################################################
+################################################################
+################
+
+
+
+
+
+
+
+
+
+
+################
+################################################################
+################################################################
+################
+
+
+#################################################################################################   
+#####  #####  #####  #####  #####  #####  #####  #####  #####  #####  #####  #####  #####  #####
+   #####  #####  #####  #####  #####  #####  #####  #####  #####  #####  #####  #####  #####
+
+   
+   
+   
+   
+   
+   
+   
+   
+   
+   
+      
+   
+ confdozero () {
+MENU=`$DIALOG --stdout --no-cancel --title " $SAMBAX " --menu "Interface para configuração do Samba\nEscolha uma das Opções abaixo: " 0 0 0 CONFIGURAR "Configuracoes essenciais" COMPARTILHAR "DIRETÓRIO/IMPRESSORA/CDROM" REMOVER COMPARTILHAMENTO INICIAR SAMBA PARAR SAMBA SOBRE "ESTE PROGRAMA" FIM "Sair do MySamba"`
+case $MENU in
+   SOBRE)
+
+ `$DIALOG --stdout --no-cancel --title " $SAMBAX " --msgbox "Script com interface baseada no SAMBAX Feito por Eduardo Assisemail: eduardodoctor@bol.com.br e 
+modificado, ampliado \ne aperfeiçoado por Julian Lennon Gonçalves: julianlinuxer@yahoo.com.br\n\nEsse MegaScript visa dar uma interface simples e explicativa para que usuários com noções básicas de \n
+informática e rede consigam montar um servidor Samba de alto poder. Voçê pode até montar ao mesmo tempo\num servidor de arquivos, de impressão, e de PDC 
+(autenticação de usuários). Esse é um programa inteligente\ne de automatização máxima, sendo que é até possível fazer backups de configuração que pode ser 
+facilmente\nexportado para outro servidor com o MySamba instalado. Você pode até ganhar um trocado sendo que montar um\nservidor desse não é barato.\n Seja bem 
+vindo ao futuro, seja bem vindo a liberdade tecnológica." 20 100`
+ confdozero
+   ;;
+   CONFIGURAR)
+
+
+ GLOBALCOMUM () {
+    $DIALOG --title "Wizard" --yesno "Este Wizard lhe guiará para fazer uma configuração comum do MySamba,\n onde você pode apenas compartilhar arquivos e impressoras. Tome cuidado\n com as palavras que forem pedidas para serem digitadas, pois faz difrença\nse você digita um nome como \ncarlos\nde um nome\nCarlos\nPor tanto, atenção!\nTambém não cancele a configuração no meio do caminho, pois a configuração já \nfeita não servirá de nada.\n\nEscolha Yes para seguir ou No para sair:" 0 0
+if [ $? == 0 ];
+then
+ echo ' #GCOMUM'>$smbdir/smb.conf
+ echo "[global]">>$smbdir/smb.conf
+   GGRUPO
+sleep 1
+   HOST 
+sleep 1
+   STRINGANDRESOLVER
+sleep 1
+   WINSRESOLVER
+sleep 1
+   PLACAS
+sleep 1
+   SEGURANCA
+sleep 1
+   CRIPTO  
+sleep 1   
+   PASSWORDSYNC
+sleep 1
+   LOGS
+sleep 1   
+   SOCKET
+sleep 1
+   TIPODEIMPRESSAO
+sleep 1
+   NIVEL
+sleep 1
+   DATACLOCKSERVER
+sleep 1
+      COISA="MySamba Server"
+      FILEIPDIR="$smbdir/smb.conf"
+   IPS
+sleep 1
+   HOMES
+sleep 1
+   PRINTERGLOBAL
+sleep 1
+   FINAL
+sleep 1
+#Lembra-se do if lááááá em cima dopois do início da função GLOBALCOMUM
+else
+
+ $DIALOG --msgbox "Como você cancelou, não adianta ter um arquivo de configuração\n$smbdir/smb.conf vazio." 0 0
+
+fi
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+ GLOBALPDC () {
+   $DIALOG --title "Wizard" --yesno "Este Wizard lhe guiará para fazer uma configuração do MySamba como servidor PDC, onde você pode\n compartilhar arquivos e impressoras, além de autenticar o login dos clientes. Cuidado com letras\nmaiúsculas e minúsculas, pois faz difrença se você digita um nome como \n\ncarlos\n\nde um nome como\n\nCarlos\n\nPor tanto, atenção!\nTambém não cancele a configuração no meio do caminho, pois a configuração já feita não servirá de nada.\n\nEscolha Yes para seguir ou No para sair:" 0 0
+
+if [ $? == 0 ];
+then
+ echo ' #GPDC'>$smbdir/smb.conf
+ echo "[global]">>$smbdir/smb.conf
+    GGRUPO
+sleep 1
+   HOST 
+sleep 1
+   WINSRESOLVER
+sleep 1
+   PLACAS
+sleep 1
+   SEGURANCA
+sleep 1
+   CRIPTO  
+sleep 1   
+   PASSWORDSYNC   
+sleep 1
+   LOGS
+sleep 1
+   SOCKET
+sleep 1 
+   TIPODEIMPRESSAO
+sleep 1
+   NIVEL
+   
+  echo "guest account = guest">>$smbdir/smb.conf
+sleep 1
+   MASTER
+sleep 1
+   DATACLOCKSERVER
+sleep 1
+      COISA="MySamba Server"
+      FILEIPDIR="$smbdir/smb.conf"
+   IPS
+sleep 1
+   HOMES
+sleep 1
+   NETLOGON
+   PRINTERGLOBAL
+sleep 1
+   FINAL
+sleep 1
+else
+#IF lé no começo do GLOBALPDC
+
+$DIALOG --msgbox "Como você cancelou, não adianta ter um arquivo de configuração
+$smbdir/smb.conf vazio." 0 0
+fi
+
+}
+
+
+
+
+INTERFACE () {
+#CCCCCCCCCCCCCCCConfigurarinterfaceEEEEEEEEEEEEEEEEEE
+
+
+
+CONF=$($DIALOG --stdout --no-cancel --title "Configurações e tarefas" --menu "Este menu é onde você faz as principais configurações do $SAMBAX. As opções ConfigBásico ou ConfigPDC são os principais ítens para fazer uma configuração \nbase para o funcionamento do $SAMBAX. Tentar fazer qualquer outra coisa sem setar os parâmetros para um deles é inútil. A opção ConfgBásico é para montar um servidor simples de compartilhamento de arquivos, impressoras e Wins. A opção ConfigPDC é mais completa, pois além das opções do ConfigBásico, ele transforma seu computador em um Server PDC (auteticação de usuários), onde você tem um maior controle e segurança na sua rede. Escolha uma das opções abaixo para realizar uma tarefa." 0 0 0 ConfigBasico "Servidor de diretórios e impressoras." ConfigPDC "Servidor de diretórios, impressoras e PDC." User "Adicionar ou remover usuários. (É preciso para o PDC)." Maquinas "Adicionar ou remover máquinas. (É essencial para o PDC)." Groups "Criar ou remover grupos" ExportMyConfig "Exportar configuração do MySamba para outro servidor MySamba" ImportMyConfig "Importar configuração do MySamba de outro servidor MySamba" ImprimirConfig "Imprime o arquivo de configuração do MySamba na impressora" Voltar "Volta ao Menu principal")
+   
+   case $CONF in
+     ConfigBasico)
+     
+                  OLHANDO=`grep '^#MySamba$' $smbdir/smb.conf`
+                  case $OLHANDO in
+                  '#MySamba')
+             MSPERCEBI
+                     if [ $? == 0 ]
+                then
+             
+                       GLOBALCOMUM
+            aplicar
+             sleep 1
+                    $DIALOG --msgbox "Pronto." 0 0
+            else
+             echo "Cancelado..."
+             sleep 1
+            fi
+          ;;
+          *)
+                  MSGLOBALREMOVE
+            if [ $? == 0 ]; then
+              GLOBALCOMUM
+                 aplicar
+         sleep 1
+            fi
+          ;;
+          esac
+
+ INTERFACE
+     ;;
+    ConfigPDC)
+                  OLHANDO=`grep '^#MySamba$' $smbdir/smb.conf`
+                  case $OLHANDO in
+                  '#MySamba')
+        
+            MSPERCEBI
+         
+                     if [ $? == 0 ]
+                then
+                      GLOBALPDC
+                      aplicar
+            $DIALOG --msgbox "Pronto." 0 0
+                      sleep 1
+           else
+            echo "Cancelado..."
+            sleep 1
+           fi
+           
+          ;;
+          *)
+                   MSGLOBALREMOVE
+             if [ $? == 0 ]; then
+                 
+                  GLOBALPDC
+                     aplicar
+             fi
+          ;;
+          esac
+    INTERFACE
+     ;;
+     Maquinas)
+           OP=$($DIALOG --stdout --no-cancel --title "Máquinas" --menu "Escolha uma opção abaixo." 0 0 0 Adicionar "Adicionar uma máquina de sua rede." Remover "Retirar uma máquina da rede do acesso." Sair "Sai sem fazer nada.")
+       case $OP in
+           Sair)
+       INTERFACE       
+      ;;
+           Adicionar)
+            #  máquinas
+             MACHINE () {
+       MICRO=$($DIALOG --title "Adicionar máquina da rede" --stdout --inputbox "Digite o nome da máquina que você quer adicionar a rede,\nisso é necessário se você vai fazer um servidor PDC com o MySamba. Digite apenas com letras minúsculas, se não falhará.\n" 0 0)
+            G=$($DIALOG --title "Adicionar máquina da rede" --stdout --inputbox "Digite o nome do grupo que a máquina faz parte." 0 0)
+
+       #A adição de máquinas deve estar errada, por favor, sugestões
+       useradd -g 100 -c Máquina_cliente -d /dev/null -s /bin/false $MICRO$
+            sleep 4
+       smbpasswd -a -m $MICRO
+       sleep 5
+            $DIALOG --yesno "Você quer adicionar outra máquina (Yes) ou sair (No)?" 0 0
+           if [ $? == 0 ]
+           then
+              MACHINE
+           fi
+            INTERFACE 
+                      }
+        MACHINE
+   
+           ;;
+           Remover)
+            RM=$($DIALOG --title "Remover máquina da rede" --stdout --inputbox "Digite o nome da máquina que será excluída." 0 0)
+            userdel $RM
+       sleep 1
+       $DIALOG --msgbox "Máquina $RM removida." 0 0
+         ;;
+         esac
+ INTERFACE
+     ;;
+     User)
+     
+         OPU=$($DIALOG --stdout --no-cancel --title "Usuários" --menu "Escolha uma opção abaixo." 10 60 4 Adicionar "Adicionar um usuário de sua rede." Remover "Retirar um usuário da rede do acesso." Sair "Sai sem fazer nada.")
+       case $OPU in
+        Voltar)
+    INTERFACE
+   ;; 
+        Adicionar)
+          NEWUSER=$($DIALOG --title "Adicionar usuário das máquinas da rede." --stdout --inputbox "Digite o nome do usuário a ser adicionado." 0 0)
+          GRUP=$($DIALOG --title "Adicionar usuário das máquinas da rede." --stdout --inputbox "Digite o nome do grupo que o usuário fará parte." 0 0)
+          PASSWORD=`$DIALOG --stdout --title " Cadastro de Usuários " --passwordbox " Favor digitar a senha do Usuário ( $NEWUSER ): " 10 45`
+
+useradd -g $GRUP -d /home/${NEWUSER} -c "Usuário criado no MySamba" -m -s /bin/bash ${NEWUSER} |echo ${NEWUSER}:${PASSWORD} |chpasswd
+        $DIALOG --title "Adicionar usuário das máquinas da rede." --msgbox "\n
+   ............................................\n
+   .Usuário adicionado......: $NEWUSER\n
+   .Grupo do usuário........: $GRUP\n
+   .Diretório Home..........: /home/$NEWUSER\n
+   ............................................\n" 0 0
+        ;;
+   Remover)
+            RMU=$($DIALOG --title "Remover máquina da rede" --stdout --inputbox "Digite o nome da máquina que será excluída." 0 0)
+            userdel $RMU
+       sleep 1
+       $DIALOG --msgbox "O usuário $RMU foi removido." 0 0
+   ;;
+        esac
+ INTERFACE
+     ;;
+     ExportMyConfig)
+      $DIALOG --title "Exportar configuração" --yesno "Coloque o disquete onde será colocada a cópia das configurações de MySamba Server.\nDevo destacar que em outro Linux que esta configuração for importada, os usuários \nterão de ser recriados, se você os criou neste sistema Linux.\nCuidado, todos os dados do seu disquete serão excluídos." 0 0
+        if [ $? == 0 ]
+        then
+         $DIALOG --title "Aguarde..." --infobox "Fomatando disquete, com FileSystem FAT 12." 0 0 &
+       fdformat /dev/fd0u1440
+       mkdosfs /dev/fd0u1440
+    $DIALOG --title "Aguarde..." --infobox "Exportando configuração." 0 0 &
+    sleep 1
+
+             mount /mnt/floppy
+        tar -c $smbdir>/mnt/floppy/mybackup.tar
+             umount /mnt/floppy
+        
+             $DIALOG --msgbox "Seu disco está pronto. Ele também serve como disco de recuperação." 0 0
+     else
+      $DIALOG --msgbox "Cancelado." 0 0
+     fi
+ INTERFACE    
+     ;;
+ImportMyConfig)
+         $DIALOG --title "Importar configuração" --yesno "Coloque o disquete onde será importada a cópia das configurações de MySamba Server.\nCuidado, as configurações atuais do Samba poderão ser sobrescritas!!!. \nExporte a configuração atual para um disquete por precaução!." 0 0
+         if [ $? == 0 ]
+    then
+    $DIALOG --title "Wait" --infobox "Recuperando..." 0 0 &
+     
+             mount /mnt/floppy
+         sleep 2
+    $DIALOG --title "Resultados do TAR..." --msgbox "`tar -xvf /mnt/floppy/mybackup.tar -C / `" 0 0
+        sleep 1
+             umount /mnt/floppy
+        $DIALOG --msgbox "Esta recuperação da configuração foi efetuada." 0 0
+     else
+              $DIALOG --msgbox "Cancelado." 0 0
+     fi
+ INTERFACE
+     ;;
+     Groups)
+   #grupos
+
+        OPG=$($DIALOG --stdout --no-cancel --title "Grupos." --menu "Escolha uma opção abaixo." 10 60 4 Adicionar "Adicionar um Grupo de sua rede." Remover " Retirar um Grupo da rede do acesso." Sair "Sai sem fazer nada.")
+       case $OPG in
+        Sair)
+    INTERFACE
+   ;;
+        Adicionar)
+       NEWG=$($DIALOG --title "Adicionar Grupo das máquinas da rede." --stdout --inputbox "Digite o nome do Grupo a ser adicionado." 0 0)
+       groupadd $NEWG
+       ;;
+   Remover)
+            RMG=$($DIALOG --title "Remover Grupo da rede" --stdout --inputbox "Digite o nome do Grupo que será excluído." 0 0)
+            groupdel $RMG
+       sleep 1
+       $DIALOG --msgbox "O Grupo $RMG foi removido." 0 0
+   ;;
+        esac
+
+ INTERFACE
+     ;;
+     ImprimirConfig)
+   $DIALOG --infobox "imprimindo o arquivo de configuração do MySamba." 0 0
+    cat -n $smbdir/smb.conf>/dev/lp0
+   sleep 2
+   $DIALOG --msgbox "Feito. Não sei se saiu." 0 0
+   sleep 1
+ INTERFACE
+     ;;
+     Voltar)
+       
+       confdozero
+     ;;
+     esac
+#CCCCCCCCCCCCCCCCCCCCCCCCCCCCCConfigurarinterfaceEEEEEEEEEEEEEEEEEEEEEEEEEEEEE
+}
+INTERFACE
+
+
+   
+   
+        ;;
+   
+   
+        COMPARTILHAR)
+# COMPARTILHAR_COMPARTILHAR_COMPARTILHAR_COMPARTILHAR_COMPARTILHAR_COMPARTILHAR_COMPARTILHAR_
+# COMPARTILHAR_COMPARTILHAR_COMPARTILHAR_COMPARTILHAR_COMPARTILHAR_COMPARTILHAR_COMPARTILHAR_
+
+
+
+   
+   
+   
+   
+   
+   
+   
+        TESTAR=`grep '^#MySamba$' $smbdir/smb.conf`
+                
+        case $TESTAR in
+        '#MySamba')
+        PERGUNTA=$($DIALOG --stdout --title "Compartilhar" --menu "Selecione o que você quer compartilhar ou escolha (Voltar) para voltar ao menu principal." 0 0 0 Diretório "Compartilhar um diretório." Impressora "Compartilhar a impressora instalada neste Linux." Cdrom "Opções para compartilhar Cdrom." Voltar "ao menu principal.")
+        
+        case $PERGUNTA in
+        Cdrom)
+ CD=$($DIALOG --stdout --title "CDROM" --menu "Selecione uma opção abaixo. Lembro que este compartilhamento é o mesmo de um diretório, sendo que para remover o compartilhamento siga a mesma rotina." 0 0 0 Compartilhar "Dá ao $SAMBAX suporte a este tipo de compartilhamento." Carregar "Coloque um CD na bandeja para carregá-lo aqui." Descarregar "Para o compartilhamento do CD (sem removê-lo)." Ejetar "Colocar o CD pra fora." Voltar "ao menu principal.")
+     case $CD in
+   Compartilhar) 
+
+      
+$DIALOG --title "Limite." --yesno "Você quer limitar o acesso deste diretório a uma determinada faixa de IPS (yes) ou deixar o acesso como definido na configuração Geral(no) (ConfigBasico ou PDC feito anteriormente.)." 0 0
+     if [ $? == 0 ]; then
+     IPACESS4=$($DIALOG --title "IPs Livres" --stdout --inputbox "Aqui você pode dizer que IPs ou faixa de IPs TERÃO acesso ao compartilhamento.\nVocê pode digitar IPs específicos como:\n10.0.1.2 ou 192.168.3.1 \n\nOu faixas de \nIPs como:\n10.0.0. ou 192.168.\nnas faixas de IPs sempre coloque um ponto no final.\nDigite cada IP e faixas de IP separados por um espaço. Veja um exemplo onde tem acesso \npara as máquinas da faixa de IP  10.0  e  192.168.2\n\n10.0. 192.168.2.\nLembrando que \nse você não digitar nada, todas as máquinas terão acesso.\n\nAgora digite os endereços,\nse quizer:" 0 0)
+     
+ sleep 1
+NOIPACESS4=$($DIALOG --title "Limite." --stdout --inputbox "Aqui você vai dizer que IPs ou faixa de IPs NÃO TERÃO acesso ao compartilhamento.\nVocê pode digitar IPs específicos como:\n10.0.1.2 ou 192.168.3.1 \n\nOu faixas de IPs\ncomo:\n10.0.0. ou 192.168.\nnas faixas de IPs sempre coloque um ponto no final.\nDigite cada IP e faixas de IP separados por um espaço. Ex:\n\n10.0.4.3 10.0.2. 192.168.4.\nVocê pode deixar em branco que não interfere em nada. Atenção, se você digitar um IP de \numa máquina que tem acesso na opção anterior e colocar por acidente seu IP aqui, ou a faixa \nde IP ao qual ele está subordinado, ele continuará tendo acesso, pois a opção anterior prevalece.\n\nAgora digite os endereços, se quizer:" 0 0)
+     else
+      IPACESS4=""
+      NOIPACESS4=""
+     fi
+   
+   nome_comp="CDROM"     
+   echo "[$nome_comp]" >$smbdir/comp/$nome_comp.comp
+   echo 'available = yes' >> $smbdir/comp/$nome_comp.comp
+   echo "browseable = yes" >> $smbdir/comp/$nome_comp.comp
+       echo "path = /mnt/cdrom" >> $smbdir/comp/$nome_comp.comp
+       echo 'guest only = yes' >> $smbdir/comp/$nome_comp.comp
+       echo "hosts allow = $IPACESS4">> $smbdir/comp/$nome_comp.comp
+   echo "hosts deny = $NOIPACESS4">> $smbdir/comp/$nome_comp.comp
+   echo "writable = no" >> $smbdir/comp/$nome_comp.comp
+        
+`$DIALOG --stdout --no-cancel --title " $SAMBAX " --msgbox "
+Configuração concluida com sucesso !\n\n
+ _____________________________________________\n
+|Nome do Compartilhamento....................:| -> ($nome_comp)\n
+|_____________________________________________|" 0 0`
+   ;;
+   Carregar)
+   $DIALOG --title "Ok" --msgbox "Coloque um cdrom na bandeja para carregá-lo." 0 0
+   umount /mnt/cdrom
+   sudo mount /mnt/cdrom
+   mount /mnt/cdrom
+   sudo mount /mnt/cdrom
+   $DIALOG --title "Ok" --msgbox "Cdrom carregado no compartilhamento." 0 0
+   ;; 
+   Descarregar)
+   sudo umount /mnt/cdrom
+   umount /mnt/cdrom
+   $DIALOG --title "Ok" --msgbox "Cdrom descarregado no compartilhamento." 0 0
+   ;;
+   Ejetar)
+   umount /mnt/cdrom
+   eject
+   ;;
+   Voltar)
+    confdozero
+   ;;
+   esac 
+        ;;
+        Diretório)
+   #Os WHILE-DO-DONE abaixo sao interessantes, mais quando tentamos compartilhar outra vez dentro do
+   #MySamba eles causam problemas por problemas de repeticao das variaveis ja definidas
+   #depois de um comartilhamento, nao tive tempode consertar isto, sugetoes no endereco láá abaixo
+   #   while [ ! $nome_comp ]
+   #   do
+           nome_comp=$($DIALOG --stdout --no-cancel --title " $SAMBAX " --inputbox "Favor Digitar o Nome do Compartilhamento:\nEx: Arquivos do departamento " 10 45)
+   #   done
+   #   while [ ! $caminho_comp ]
+   #   do
+      caminho_comp=$($DIALOG --stdout --no-cancel --title " $SAMBAX " --inputbox "Favor Digitar o Caminho do Compartilhamento:\nEx: /home/$nome_comp " 0 0 )
+   #   done
+         if [ -d $caminho_comp ]
+         then
+          echo "existe."
+         else
+         
+            $DIALOG --title " $SAMBAX " --yesno " O caminho ($caminho_comp) que você digitou não existe\nDeseja criar a pasta agora ? " 0 0
+           if [ $? == 0 ]
+           then
+             mkdir $caminho_comp
+           fi
+           
+         fi
+         sleep 1
+      N1=$($DIALOG --title "Permissões" --stdout --menu "O dono do diretório (quem o criou) terá que permissões sobre ele?" 0 0 0 Somente_Leitura "O dono do diretório na rede so pode o ler." Leitura_e_escrita "O dono pode ler e escrever (menos seguro)" Acesso_Total "O dono pode fazer o que quiser sobre o diretorio (perigoso)")
+      case $N1 in
+      Somente_Leitura)
+       NUM1=4
+       ;;
+      Leitura_e_escrita)
+       NUM1=6
+       ;;
+      Acesso_Total)
+       NUM1=7
+       ;;
+      esac
+
+                N2=$($DIALOG --title "Permissões" --stdout --menu "O grupo do diretório (ao qual o dono faz parte) terá que permissões sobre ele?" 0 0 0 Somente_Leitura "O dono do diretório na rede so pode o ler." Leitura_e_escrita "O dono pode ler e escrever (menos seguro)" Acesso_Total "O dono pode fazer o que quiser sobre o diretorio (perigoso)")
+      case $N2 in
+      Somente_Leitura)
+       NUM2=4
+       ;;
+      Leitura_e_escrita)
+       NUM2=6
+       ;;
+      Acesso_Total)
+       NUM2=7
+       ;;
+      esac
+           N3=$($DIALOG --title "Permissões" --stdout --menu "Os outros usuários (Ex: Os usuários anônimos da rede) terá que permissões sobre ele?" 0 0 0 Somente_Leitura "O dono do diretório na rede so pode o ler." Leitura_e_escrita "O dono pode ler e escrever (menos seguro)" Acesso_Total "O dono pode fazer o que quiser sobre o diretorio (perigoso)")
+      case $N3 in
+      Somente_Leitura)
+       NUM3=4
+       ;;
+      Leitura_e_escrita)
+       NUM3=6
+       ;;
+      Acesso_Total)
+       NUM3=7
+       ;;
+      esac
+#//////////////////////////////////#
+chmod $NUM1$NUM2$NUM3 $caminho_comp
+#//////////////////////////////////#
+       
+      $DIALOG --title "Permissão geral." --yesno "Na configuração geral deste compartilhamento, ele terá permissão de leitura e escrita(yes) ou terá permissão de somente leitura(no). As perguntas de permissão anteriores eram as permissões para a criação (do diretório). Agora esta pergunta é para o compartilhamento geral." 0 0
+        if [ $? == 0 ]; then
+    PERM=yes
+    PERM2="Sim, podem ler e escrever"
+   else 
+    PERM=no
+    PERM2="Não, só podem ler"
+   fi
+
+   $DIALOG --title "Limite." --yesno "Você quer limitar o acesso deste diretório a uma determinada faixa de IPS (yes) ou deixar o acesso como definido na configuração Geral(no) (ConfigBasico ou PDC feito anteriormente.)." 0 0
+     if [ $? == 0 ]; then
+     IPACESS2=$($DIALOG --title "IPs Livres" --stdout --inputbox "Aqui você pode dizer que IPs ou faixa de IPs TERÃO acesso ao compartilhamento.\nVocê pode digitar IPs específicos como:\n10.0.1.2 ou 192.168.3.1 \n\nOu faixas de \nIPs como:\n10.0.0. ou 192.168.\nnas faixas de IPs sempre coloque um ponto no final.\nDigite cada IP e faixas de IP separados por um espaço. Veja um exemplo onde tem acesso \npara as máquinas da faixa de IP  10.0  e  192.168.2\n\n10.0. 192.168.2.\nLembrando que \nse você não digitar nada, todas as máquinas terão acesso.\n\nAgora digite os endereços,\nse quizer:" 0 0)
+     
+ sleep 1
+NOIPACESS2=$($DIALOG --title "Limite." --stdout --inputbox "Aqui você vai dizer que IPs ou faixa de IPs NÃO TERÃO acesso ao compartilhamento.\nVocê pode digitar IPs específicos como:\n10.0.1.2 ou 192.168.3.1 \n\nOu faixas de IPs\ncomo:\n10.0.0. ou 192.168.\nnas faixas de IPs sempre coloque um ponto no final.\nDigite cada IP e faixas de IP separados por um espaço. Ex:\n\n10.0.4.3 10.0.2. 192.168.4.\nVocê pode deixar em branco que não interfere em nada. Atenção, se você digitar um IP de \numa máquina que tem acesso na opção anterior e colocar por acidente seu IP aqui, ou a faixa \nde IP ao qual ele está subordinado, ele continuará tendo acesso, pois a opção anterior prevalece.\n\nAgora digite os endereços, se quizer:" 0 0)
+     else
+      IPACESS2=""
+      NOIPACESS2=""
+     fi
+   
+
+               $DIALOG --title "$SAMBAX" --yesno "O compartilhamento aparecerá entre os outros (yes) ou será oculto (no)?" 0 0
+ if [ $? == 0 ]; then
+  RESPO='yes'
+  RESPO2="Não será oculto"
+ else
+  RESPO=no
+  RESPO2="Sim, será oculto"
+ fi
+ 
+  if [ -d $smbdir/comp ]
+   then
+    sleep 1
+   else 
+    mkdir $smbdir/comp
+   fi
+   sleep 1
+   echo "[$nome_comp]" >>$smbdir/comp/$nome_comp.comp
+   echo 'available = yes' >> $smbdir/comp/$nome_comp.comp
+   echo "browseable = $RESPO" >> $smbdir/comp/$nome_comp.comp
+       echo "path = $caminho_comp" >> $smbdir/comp/$nome_comp.comp
+       echo 'guest only = yes' >> $smbdir/comp/$nome_comp.comp
+       echo "hosts allow = $IPACESS2">> $smbdir/comp/$nome_comp.comp
+   echo "hosts deny = $NOIPACESS2">> $smbdir/comp/$nome_comp.comp
+   echo "writable = $PERM" >> $smbdir/comp/$nome_comp.comp
+
+  
+  rm -rf $smbdir/smb.conf
+  touch $smbdir/smb.conf
+  cat $smbdir/GLOBAL>$smbdir/smb.conf
+  cat $smbdir/comp/*.comp>>$smbdir/smb.conf
+  cat $smbdir/compprint/*.comp>>$smbdir/smb.conf
+
+
+`$DIALOG --stdout --no-cancel --title " $SAMBAX " --msgbox "
+Configuração concluida com sucesso !\n\n
+ _____________________________________________\n
+|Nome do Compartilhamento....................:| -> ($nome_comp)\n
+|Caminho do Compartilhamento.................:| -> ($caminho_comp)\n
+|Para o dono do diretorio....................:| -> ($N1)\n
+|Para o grupo................................:| -> ($N2)\n
+|Para os outros..............................:| -> ($N3)\n
+|Permissoes (da pasta).......................:| -> ($NUM1$NUM2$NUM3)\n
+|(Compartilhamento) com permissao de escrita.:| -> ($PERM2)\n
+|O Compartilhamento sera oculto..............:| -> ($RESPO2)\n
+|_____________________________________________|" 0 0`
+
+
+    ;;
+   
+#Esse diretório será usado em outras versões para adicionar vários compartilhamentos de impressoras (incluindo as que estiver em #máquinas Windows, mais Quando eu aprender. hhehe. Quem domina o Samba, Mande dicas.
+
+   Impressora)
+ if [ ! -d $smbdir/compprint ]; then
+  mkdir $smbdir/compprint 
+ fi
+ 
+ 
+ 
+NAMEIMPRESS=$($DIALOG --stdout --title "Compartilhar Impressoras" --inputbox "Digite o nome do compartilhamento de impressora." 0 0)  
+
+COMENTIMPRESS=$($DIALOG --stdout --title "Compartilhar Impressoras" --inputbox "Digite o comentário que aparecerá sobreo o compartilhamento." 0 0)  
+
+NAMEPRINT=$($DIALOG --stdout --title "Compartilhar Impressoras" --inputbox "Digite o nome da impressora. Ex:\nHP\nLexmark\netc..." 0 0)  
+
+ $DIALOG --title "Limite." --yesno "Você quer limitar o acesso deste compartilhamento a uma determinada faixa de IPS (yes) ou deixar o acesso como definido na configuração Geral(no) (ConfigBasico ou PDC feito anteriormente.)." 0 0
+     if [ $? == 0 ]; then
+     IPACESS3=$($DIALOG --title "IPs Livres" --stdout --inputbox "Aqui você pode dizer que IPs ou faixa de IPs TERÃO acesso ao compartilhamento.\nVocê pode digitar IPs específicos como:\n10.0.1.2 ou 192.168.3.1 \n\nOu faixas de \nIPs como:\n10.0.0. ou 192.168.\nnas faixas de IPs sempre coloque um ponto no final.\nDigite cada IP e faixas de IP separados por um espaço. Veja um exemplo onde tem acesso \npara as máquinas da faixa de IP  10.0  e  192.168.2\n\n10.0. 192.168.2.\nLembrando que \nse você não digitar nada, todas as máquinas terão acesso.\n\nAgora digite os endereços,\nse quizer:" 0 0)
+     
+ sleep 1
+NOIPACESS3=$($DIALOG --title "Limite." --stdout --inputbox "Aqui você vai dizer que IPs ou faixa de IPs NÃO TERÃO acesso ao compartilhamento.\nVocê pode digitar IPs específicos como:\n10.0.1.2 ou 192.168.3.1 \n\nOu faixas de IPs\ncomo:\n10.0.0. ou 192.168.\nnas faixas de IPs sempre coloque um ponto no final.\nDigite cada IP e faixas de IP separados por um espaço. Ex:\n\n10.0.4.3 10.0.2. 192.168.4.\nVocê pode deixar em branco que não interfere em nada. Atenção, se você digitar um IP de \numa máquina que tem acesso na opção anterior e colocar por acidente seu IP aqui, ou a faixa \nde IP ao qual ele está subordinado, ele continuará tendo acesso, pois a opção anterior prevalece.\n\nAgora digite os endereços, se quizer:" 0 0)
+     else
+      IPACESS3=""
+      NOIPACESS3=""
+     fi
+          
+nome_comp="impressora"         
+echo "[$NAMEIMPRESS]"> $smbdir/compprint/$nome_comp.comp
+echo "comment = $COMENTIMPRESS">> $smbdir/compprint/$nome_comp.comp
+echo "path = /var/spool/samba">> $smbdir/compprint/$nome_comp.comp
+echo "read only = no">> $smbdir/compprint/$nome_comp.comp
+echo "create mask = 0700">> $smbdir/compprint/$nome_comp.comp
+echo "guest ok = yes">> $smbdir/compprint/$nome_comp.comp
+echo "printable = yes">> $smbdir/compprint/$nome_comp.comp 
+echo "print command = lpr-cups -P %p -o raw %s -r # using client side printer drivers.">> $smbdir/compprint/$nome_comp.comp
+echo "lpq command = lpstat -o %p">> $smbdir/compprint/$nome_comp.comp
+echo "lprm command = cancel %p-%j">> $smbdir/compprint/$nome_comp.comp
+echo "printer name = $NAMEPRINT">> $smbdir/compprint/$nome_comp.comp
+echo "oplocks = no">> $smbdir/compprint/$nome_comp.comp
+echo "hosts allow = $IPACESS3">> $smbdir/compprint/$nome_comp.comp
+echo "hosts deny = $NOIPACESS3">> $smbdir/compprint/$nome_comp.comp
+echo "share modes = no">> $smbdir/compprint/$nome_comp.comp
+   
+    rm -rf $smbdir/smb.conf
+    touch $smbdir/smb.conf
+    cat $smbdir/GLOBAL>$smbdir/smb.conf
+    cat $smbdir/comp/*.comp>>$smbdir/smb.conf
+    cat $smbdir/compprint/*.comp>>$smbdir/smb.conf
+
+`$DIALOG --stdout --no-cancel --title " $SAMBAX " --msgbox "
+Configuração concluida com sucesso !\n\n
+ _____________________________________________\n
+|Nome do Compartilhamento....................:| -> ($NAMEIMPRESS)\n
+|Comentário do compartilhamento..............:| -> ($COMENTIMPRESS)\n
+|Nome de impressora..........................:| -> ($NAMEPRINT)\n
+|_____________________________________________|" 0 0`
+    
+   ;;
+   Voltar)
+    confdozero
+   ;;
+   esac
+
+   
+      
+      ;;
+      *)
+      $DIALOG --title "Descupe!" --msgbox "Sinto muito, mais você não pode
+compartilhar nada sem ter configurado como o MySamba vai funcionar. Para
+configurá-lo, vá no menu principal e entre em (CONFIGURAR) e depois em
+(ConfigBásico ou ConfigPDC)." 0 0
+      ;;
+      esac
+      
+# COMPARTILHAR_COMPARTILHAR_COMPARTILHAR_COMPARTILHAR_COMPARTILHAR_COMPARTILHAR_COMPARTILHAR_
+# COMPARTILHAR_COMPARTILHAR_COMPARTILHAR_COMPARTILHAR_COMPARTILHAR_COMPARTILHAR_COMPARTILHAR_   
+         
+      
+
+
+
+
+   confdozero   
+   ;;
+
+
+   REMOVER)
+   
+#Parâmetros para uma seleção de arquivo. Sei que podia usar
+#dialog --fselect "/diretorio/" 0 0
+#Só que é menos seguro, pois o usuário pode deletar outros arquivos
+
+##############################
+
+DECID=$($DIALOG --stdout --title "Escolha." --menu "Escolha que compartilhamento quer remover." 0 0 0 Diretório "Diretório ou Cdrom." Impressora "Remover impressora do compartilhamento." Voltar "ao menu principal.")
+   sleep 3
+   echo $DIALOG>/tmp/dialogo
+case $DECID in
+
+Diretório)
+##############################
+echo '#!/bin/sh'>/tmp/VIEW
+echo 'DIALOG=`cat /tmp/dialogo`'>/tmp/VIEW
+echo '$DIALOG --stdout --menu "Selecione o compartilhamento a ser removido." 0 0 0 `cat /tmp/files`>/tmp/escolha'>>/tmp/VIEW
+   sleep 3
+
+echo "">/tmp/files
+   sleep 3
+i=0
+for name in `ls $smbdir/comp/`;
+do
+  i=$(expr $i + 1)
+  
+  echo "$name item$i">>/tmp/files
+ 
+done 
+
+chmod 777 /tmp/VIEW 
+   sleep 3
+/tmp/VIEW
+        if [ $? != 0 ]; 
+   then 
+    confdozero
+   fi
+   sleep 3
+COMP=$(cat /tmp/escolha)
+   sleep 3
+##############################
+
+
+ $DIALOG --title " $SAMBAX " --yesno " Tem certeza que quer remover o compartilhamento $COMP? " 0 0
+ if [ $? == 0 ];
+ then
+
+   rm $smbdir/comp/$COMP
+    rm -rf $smbdir/smb.conf.YOUBACKUP     
+    cp -Rp $smbdir/smb.conf $smbdir/smb.conf.YOUBACKUP
+   rm -rf $smbdir/smb.conf
+   touch $smbdir/smb.conf
+   sleep 1
+   cat $smbdir/GLOBAL>$smbdir/smb.conf
+   cat $smbdir/comp/*.comp>>$smbdir/smb.conf
+   
+    $DIALOG --title "OBS:" --msgbox "Voce removeu o compartilhamento $COMP mas a pasta onde estao os\narquivos ainda continua existindo pois eu nao o removo." 0 0
+
+
+   $DIALOG --title "OK" --beep-after --msgbox "Compartilhamento $COMP removido. Va ao menu principal e clique em RECARREGAR para reiniciar o servicos para as novas configuracoes valerem." 0 0
+  
+fi
+
+confdozero
+;;
+Impressora)
+
+
+##############################
+echo '#!/bin/sh'>/tmp/VIEW
+echo 'dialog --stdout --menu "Selecione o compartilhamento a ser removido." 0 0 0 `cat /tmp/files`>/tmp/escolha'>>/tmp/VIEW
+echo "">/tmp/files
+i=0
+for name in `ls $smbdir/compprint/`;
+do
+  i=$(expr $i + 1) 
+  echo "$name item$i">>/tmp/files
+ 
+done 
+
+chmod 777 /tmp/VIEW 
+
+/tmp/VIEW
+        if [ $? != 0 ]; 
+   then 
+    confdozero
+   fi
+
+COMP=$(cat /tmp/escolha)
+##############################
+
+ $DIALOG --title " $SAMBAX " --yesno " Tem certeza que quer remover o compartilhamento $COMP? " 0 0
+ if [ $? == 0 ];
+ then
+
+   rm $smbdir/compprint/$COMP
+       
+   rm -rf $smbdir/smb.conf
+   touch $smbdir/smb.conf
+   sleep 1
+   cat $smbdir/GLOBAL>$smbdir/smb.conf
+   cat $smbdir/comp/*.comp>>$smbdir/smb.conf
+   cat $smbdir/compprint/*.comp>>$smbdir/smb.conf
+   
+    $DIALOG --title "OBS:" --msgbox "Voce removeu o compartilhamento $COMP." 0 0
+
+
+   $DIALOG --title "OK" --beep-after --msgbox "Compartilhamento $COMP removido. Va ao menu principal e clique em RECARREGAR para reiniciar o serviços para as novas configuracões valerem." 0 0
+
+fi
+ confdozero
+
+
+
+;;
+Voltar)
+
+ confdozero
+;;       
+esac
+
+
+      ;;
+   INICIAR)
+         $DIALOG --title " $SAMBAX " --yesno " Deseja que o Samba seja iniciado junto com o Sistema(yes) ou so iniciar agora(no)? " 10 50
+         if [ $? == 0 ];
+         then
+         
+           if [ -f /etc/rc.d/rc.local.nosamba ];
+           then
+            $DIALOG --msgbox "Seu Linux ja esta configurado para iniciar o servico que voce esta tentando habilitar de novo." 0 0
+           else
+            smbd start
+            nmbd start
+            cp -Rp /etc/rc.d/rc.local /etc/rc.d/rc.local.nosamba
+                                echo 'echo "-->Iniciando servidor MySamba."'>> /etc/rc.d/rc.local
+            echo "smbd start" >> /etc/rc.d/rc.local
+            echo "nmbd start" >> /etc/rc.d/rc.local
+chmod +x /etc/rc.d/rc.local
+chmod -x /etc/rc.d/rc.local.nosamba
+            `$DIALOG --stdout --no-cancel --title " $SAMBAX " --msgbox " Serviço Iniciado com Sucesso !!! " 10 45`
+           fi
+           
+         else
+            smbd start
+            nmbd start
+            `$DIALOG --stdout --no-cancel --title " $SAMBAX " --msgbox " Serviço Iniciado com Sucesso !!! " 10 45`
+         fi
+           confdozero
+      ;;
+   PARAR)
+            smbd stop
+            nmbd stop
+
+             $DIALOG --title " $SAMBAX " --yesno " Deseja que o Samba também não inicie junto com o sistema? " 0 0
+        if [ $? == 0 ];
+        then
+        
+          if [ -f /etc/rc.d/rc.local.nosamba ];
+          then
+      cp -Rp /etc/rc.d/rc.local.nosamba /etc/rc.d/rc.local
+      chmod +x /etc/rc.d/rc.local
+      rm -rf /etc/rc.d/rc.local.nosamba
+      echo " Comando concluido com Sucesso !!! "
+          else
+           $DIALOG --msgbox "Voce ja tinha configurado para o seu Linux nao iniciar o servico." 0 0
+          fi
+          
+             fi
+        $DIALOG --title "OK" --msgbox "Serviço foi parado." 0 0
+   confdozero   
+         ;;
+   FIM)
+      
+      exit
+           ;;
+esac
+
+
+
+}    
+
+
+################################################################################
+######################################
+       
+BACKUP (){
+  
+         if [ -f $smbdir/smb.conf.old ];
+    then
+     $DIALOG --yesno "Analizando, percebi que você já tem um outro arquivo de configuração em\n\n $smbdir/smb.conf.old\n\nVocê quer que coloque outro nome para este backup (Yes) ou sobrescrever o backup já existente (No)?" 0 0
+     if [ $? == 0 ];
+     then
+      NOME=$( $DIALOG --stdout --inputbox "Que nome quer dar ao backup?" 0 0 )
+     
+      $mydialog --infobox "Fazendo backup da configuração antiga em:\n\n$smbdir/$NOME.old" 7 60
+      cp -Rp $smbdir/smb.conf $smbdir/$NOME.old
+      sleep 4
+      $mydialog --infobox "Removendo a configuração antiga\n\n$smbdir/smb.conf..." 7 60
+      rm -rf $smbdir/smb.conf 
+      sleep 4
+      $mydialog --infobox "Criando um novo arquivo de configuração\n para ser preenchido com suas opções:\n\n$smbdir/smb.conf" 7 60
+           touch $smbdir/smb.conf
+      sleep 4.5
+      $mydialog --infobox "Pronto, agora vamos configurar \nseu servidor MySamba do zero..." 7 60
+
+      sleep 5
+       confdozero
+     else
+
+      rm -rf $smbdir/smb.conf.old
+      cp -Rp $smbdir/smb.conf $smbdir/smb.conf.old
+      sleep 3
+      $mydialog --infobox "Removendo a configuração antiga:\n\n$smbdir/smb.conf" 7 60
+      rm -rf $smbdir/smb.conf
+      sleep 4
+      $mydialog --infobox "Criando um novo arquivo de configuração\n para ser preenchido com suas opções:\n\n$smbdir/smb.conf" 7 60
+           touch $smbdir/smb.conf
+      sleep 4.5
+      $mydialog --infobox "Pronto, agora vamos configurar \nseu servidor MySamba do zero..." 7 60
+      sleep 5
+           confdozero
+    
+     fi
+         else
+     cp -Rp $smbdir/smb.conf $smbdir/smb.conf.old
+     sleep 4
+     $mydialog --infobox "Removendo a configuração antiga\n\n$smbdir/smb.conf..." 7 60
+     rm -rf $smbdir/smb.conf
+     sleep 5
+     $mydialog --infobox "Criando um novo arquivo de configuração\n para ser preenchido com suas opções\n\n$smbdir..." 7 60
+          touch $smbdir/smb.conf
+     sleep 5
+     $mydialog --infobox "Pronto, agora vamos configurar \nseu servidor MySamba do zero..." 7 60
+          sleep 5
+          confdozero
+         fi
+     
+
+}
+
+
+
+
+
+
+   smbcfg (){
+    if [ -f $smbdir/smb.conf ]
+    then
+
+         OLHADA=`grep '^#MySamba$' $smbdir/smb.conf`
+           case $OLHADA in
+           '#MySamba')
+        confdozero
+
+      ;;
+      *)
+    $mydialog --title 'INFORMAÇÃO' --yesno "\n\n\nUm arquivo $smbdir/smb.conf de configuração do samba antigo já existe e que\n não foi feito pelo program $SAMBAX, você pode fazer um backup desta configuração\n para você fazer uma configuração totalmente nova do MySamba (do zero). Esta é talvez\n a sua primeira vez na configuração do MySamba, obrigatóriamente faça um backup por que\n o arquivo original será excluído por não ser compatível com o MySamba.\n\n\n\nEscolha  Yes  para sim (Fazer um backup) ou  No  para não (Sobrescrever o arquivo sem compromisso)." 0 0
+        
+        if [ $? == 0 ];
+   then
+    BACKUP
+        else
+    rm -rf $smbdir/smb.conf
+    touch $smbdir/smb.conf
+    confdozero
+        fi
+   
+         ;;
+        esac
+     
+     
+    else
+    
+        if [ -d $smbdir ]
+   then
+ $DIALOG --title "Atenção." --yesno "Encontrei apenas o diretório do samba, mas sem os arquivos de configuração.\n Quer montar assim mesmo um arquivo de configuração do MySamba. Esse arquivo\n pode ser facilmente exportado para outro servidor MySamba." 0 0
+        
+            if [ $? == 0 ]; then
+             confdozero
+            fi
+    
+   else    
+ $DIALOG --yesno "Não encontrei nem o arquivo de configuração do Samba $smbdir/smb.conf nem seu\n diretório padrão $smbdir (de acordo com o padrão LSB). Talvez o Samba não esteja\n instalado nesta distribuição Linux Kernel `uname -r`. Se desejar mesmo assim construir\n um novo arquivo de configuração (que pode ser exportado para outro servidor com MySamba, \n escolha Yes, ou No para Sair." 0 0
+
+      if [ $? == 0 ]
+      then
+       mkdir $smbdir
+       touch $smbdir/smb.conf
+       confdozero
+           else
+       exit 0
+           fi
+         echo "Fui!!!"
+   
+   fi
+        # touch $smbdir/smb.conf
+        # confdozero 
+    fi
+    echo "Fui!!! Sair..."
+    exit 0
+}  
+
+
+
+INSTALL () { 
+
+if [ ! -f $filemysamba ]; then
+
+ $DIALOG --title "MySamba INSTALL" --yesno "Percebo que talvez esta é a primeira vez que você roda o MySamba Server neste Linux kernel `uname -r`, posso instalá-lo pra você agora. Ele instala em qualquer sistema operacional Linux, só não garanto que ele vá funcionar com sua distribuição. Este sistema controla o Samba de acordo com o padrão LSB e não ocupa mais do que 60K. Quer instalá-lo (yes) ou rodá-lo sem instalar (no)?" 0 0
+ if [ $? == 0 ]; then
+  $DIALOG --title "instaling..." --infobox "Intalando MySamba Server em /usr/local/bin" 0 0
+  cp -Rp ./mysamba /usr/local/bin/
+  sleep 1
+  $DIALOG --title "instaled..." --msgbox "Instalação do mySamba Server Concluída.\nO comando para abrir o MySamba é:\nmysamba\nPressione ENTER para eu abrí-lo agora." 0 0
+  sleep 1
+ fi
+fi
+ 
+}
+
+######################################################3
+#Inicio real do programa e requisições das  funções....
+
+INSTALL
+
+smbcfg
+confdozero
+
+
+
+#MySamba Server 
+#Version 0.1
